@@ -1,16 +1,20 @@
 const express = require("express");
-const bodyParser = require('body-parser')
+const routes = require("./routes/routes");
+
 const app = express();
 const port = 3000;
-const routes = require("./routes/routes");
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
 
+// Middleware to parse JSON and urlencoded data
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Use the defined routes
+app.use("/api", routes);
+
+// Basic route
 app.get("/", (req, res) => {
   res.send("Hello World!");
 });
-
-app.use("/api", routes);
 
 app.listen(port, () => {
   console.log(`Example app listening on port ${port}`);

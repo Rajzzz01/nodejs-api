@@ -3,6 +3,7 @@ const bcrypt = require("bcrypt");
 const prisma = new PrismaClient();
 const jwt = require("jsonwebtoken");
 const jwtSecret = process.env.JWT_SECRET;
+const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
 
 class UserController {
   async getUser(req, res) {
@@ -157,7 +158,7 @@ class UserController {
 
   async getProfile(req, res) {
     try {
-      const authorization  = req.headers;
+      const authorization = req.headers;
 
       if (!authorization) {
         return res.status(401).json({ error: "Unauthorized" });
@@ -165,7 +166,7 @@ class UserController {
 
       const token = authorization.split(" ")[1];
       const decoded = jwt.verify(token, jwtSecret);
-      console.log('decoded', decoded);
+      console.log("decoded", decoded);
       const existingUser = await prisma.user.findUnique({
         where: { id: decoded.userId },
       });
@@ -183,6 +184,93 @@ class UserController {
       res.status(500).json({ error: "An error occurred while fetching users" });
     }
   }
+
+  async updateProfile(req, res) {
+    try {
+
+      const { email, name, address } = req.body;
+      const authorization = req.headers.authorization;
+
+      if (!authorization) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const token = authorization.split(" ")[1];
+      const decoded = jwt.verify(token, jwtSecret);
+      const existingUser = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+      });
+
+      if (!existingUser) {
+        res.status(404).json({ message: "Unauthorized" });
+      }
+
+      const user = await prisma.user.update({
+        where: { id: existingUser.id },
+        data: {
+          email,
+          name,
+          UserDetails: {
+            upsert: {
+              create: { address},
+              update: { address},
+            },
+          },
+        },
+        include: {
+          UserDetails: true,
+        },
+      });
+
+      // Respond with the list of users
+      res.status(200).json({
+        message: "Profile updated successfully",
+        user: user,
+      });
+    } catch (error) {
+      console.error("Error fetching users:", error.message);
+      res.status(500).json({ error: "An error occurred while fetching users" });
+    }
+  }
+
+  async updateProfilePic(req, res) {
+    try {
+      const file = req.file;
+      if (!file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+      const url = `${baseUrl}/uploads/${file.filename}`;
+
+      const authorization = req.headers.authorization;
+      if (!authorization) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+      const token = authorization.split(" ")[1];
+      const decoded = jwt.verify(token, jwtSecret);
+  
+      const existingUser = await prisma.user.findUnique({
+        where: { id: decoded.userId },
+      });
+  
+      if (!existingUser) {
+        return res.status(404).json({ message: "User not found" });
+      }
+  
+      // Update or create the user's profile picture URL
+      const userDetails = await prisma.userDetails.update({
+        where: { userId: existingUser.id },
+        data: { url },
+      });
+  
+      res.status(200).json({
+        message: "Profile pic updated successfully",
+        user: userDetails,
+      });
+    } catch (error) {
+      console.error("Error updating profile pic:", error.message);
+      res.status(500).json({ error: "An error occurred while updating the profile picture" });
+    }
+  }
+  
 }
 
 module.exports = UserController;
